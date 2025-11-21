@@ -10,27 +10,13 @@ def normalize_vectors(model_size: str, n_layers: int):
         os.makedirs(normalized_vectors_dir)
     for layer in range(n_layers):
         print(layer)
-        norms = {}
-        vecs = {}
-        new_paths = {}
         for behavior in ALL_BEHAVIORS:
             vec_path = get_vector_path(behavior, layer, get_model_path(model_size))
             vec = t.load(vec_path)
-            norm = vec.norm().item()
-            vecs[behavior] = vec
-            norms[behavior] = norm
             new_path = vec_path.replace("vectors", "normalized_vectors")
-            new_paths[behavior] = new_path
-        print(norms)
-        mean_norm = t.tensor(list(norms.values())).mean().item()
-        # normalize all vectors to have the same norm
-        for behavior in ALL_BEHAVIORS:
-            vecs[behavior] = vecs[behavior] * mean_norm / norms[behavior]
-        # save the normalized vectors
-        for behavior in ALL_BEHAVIORS:
-            if not os.path.exists(os.path.dirname(new_paths[behavior])):
-                os.makedirs(os.path.dirname(new_paths[behavior]))
-            t.save(vecs[behavior], new_paths[behavior])
+            if not os.path.exists(os.path.dirname(new_path)):
+                os.makedirs(os.path.dirname(new_path))
+            t.save(vec / vec.norm(), new_path)
     
     
 if __name__ == "__main__":

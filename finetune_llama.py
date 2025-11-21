@@ -2,7 +2,7 @@
 Finetune the Llama model on the answer behavior dataset.
 
 Usage:
-python finetune_llama.py --behavior sycophancy --direction pos 
+python finetune_llama.py --behavior hallucination --direction pos
 """
 
 import argparse

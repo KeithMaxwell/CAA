@@ -9,9 +9,6 @@ import matplotlib.pyplot as plt
 import json
 from typing import Dict, Any, List
 import os
-from collections import defaultdict
-import matplotlib.cm as cm
-import numpy as np
 import argparse
 from steering_settings import SteeringSettings
 from behaviors import ANALYSIS_PATH, HUMAN_NAMES, get_results_dir, get_analysis_dir, ALL_BEHAVIORS
@@ -182,94 +179,6 @@ def plot_finetuning_openended_comparison(settings: SteeringSettings, finetune_po
         except KeyError:
             pass
 
-
-
-def plot_tqa_mmlu_results_for_layer(
-    layer: int, multipliers: List[float], settings: SteeringSettings
-):
-    save_to = os.path.join(
-        get_analysis_dir(settings.behavior),
-        f"{settings.make_result_save_suffix(layer=layer)}.png",
-    )
-    res_per_category = defaultdict(list)
-    for multiplier in multipliers:
-        results = get_data(layer, multiplier, settings)
-        categories = set([item["category"] for item in results])
-        for category in categories:
-            category_results = [
-                item for item in results if item["category"] == category
-            ]
-            avg_key_prob = get_avg_key_prob(category_results, "correct")
-            res_per_category[category].append((multiplier, avg_key_prob))
-
-    plt.figure(figsize=(10, 5))
-    for idx, (category, res_list) in enumerate(sorted(res_per_category.items(), key=lambda x: x[0])):
-        x = [idx] * len(res_list)  # Assign a unique x-coordinate for each category
-        y = [score for _, score in res_list]  # Extract y-coordinates from the results
-        colors = cm.rainbow(np.linspace(0, 1, len(res_list)))  # Assign colors based on the rainbow spectrum
-        plt.scatter(x, y, color=colors, s=80)  # Plot the points with the assigned colors
-
-    # Add a legend for the colors with the correct rainbow spectrum cm.rainbow(np.linspace(0, 1, len(multipliers)))
-    # Need to ensure dots colored with raindbow rather than default
-    for idx, multiplier in enumerate(multipliers):
-        plt.scatter([], [], color=cm.rainbow(np.linspace(0, 1, len(multipliers)))[idx], label=f"Multiplier {multiplier}")
-    plt.legend(loc="upper left")
-
-    # Final plot adjustments
-    plt.xticks(range(len(categories)), categories, rotation=45, ha="right")
-    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0%}"))
-    plt.xlabel("Multiplier")
-    plt.ylabel("Probability of correct answer to A/B question")
-    if (settings.override_vector is None) and (settings.override_vector_model is None) and (settings.override_model_weights_path is None):
-        plt.title(f"Effect of {HUMAN_NAMES[settings.behavior]} CAA on {settings.get_formatted_model_name()} performance")
-    plt.tight_layout()
-    plt.savefig(save_to, format="png")
-
-    def _format_for_latex_table(x, baseline):
-        x_rounded_2dp = round(x, 2)
-        baseline_rounded_2dp = round(baseline, 2)
-        if x_rounded_2dp < baseline_rounded_2dp:
-            return f"\\worse{{{x_rounded_2dp:.2f}}}"
-        elif x_rounded_2dp > baseline_rounded_2dp:
-            return f"\\better{{{x_rounded_2dp:.2f}}}"
-        else:
-            return f"\\same{{{x_rounded_2dp:.2f}}}"
-        
-    def _format_category_name(c):
-        # split by _ and capitalize first letter of each word
-        return " ".join([word.capitalize() for word in c.split("_")])
-    
-    # Optionally, save the data used for plotting
-    with open(save_to.replace(".png", ".txt"), "w") as f, open(save_to.replace(".png", ".tex"), "w") as f_tex:
-        pos_avg = 0
-        neg_avg = 0
-        no_steering_avg = 0
-        for category in sorted(res_per_category.keys()):
-            res_list = res_per_category[category]
-            res_dict = dict(res_list)
-            try:
-                no_steering_res = res_dict[0]
-                positive_steering_res = res_dict[1]
-                negative_steering_res = res_dict[-1]
-                pos_avg += positive_steering_res
-                neg_avg += negative_steering_res
-                no_steering_avg += no_steering_res
-                positive_steering_res = _format_for_latex_table(positive_steering_res, no_steering_res)
-                negative_steering_res = _format_for_latex_table(negative_steering_res, no_steering_res)
-                no_steering_res = f"\\same{{{no_steering_res:.2f}}}"
-                f_tex.write(f"{_format_category_name(category)} & {positive_steering_res} & {negative_steering_res} & {no_steering_res} \\\ \n")
-            except KeyError:
-                pass                
-            for multiplier, score in res_list:
-                f.write(f"{category}\t{multiplier}\t{score}\n")
-        pos_avg /= len(res_per_category)
-        neg_avg /= len(res_per_category)
-        no_steering_avg /= len(res_per_category)
-        pos_avg = _format_for_latex_table(pos_avg, no_steering_avg)
-        neg_avg = _format_for_latex_table(neg_avg, no_steering_avg)
-        no_steering_avg = f"\\same{{{no_steering_avg:.2f}}}"
-        avg_line = f"Average & {pos_avg} & {neg_avg} & {no_steering_avg} \\\ \n"
-        f_tex.write(avg_line)
 
 
 def plot_open_ended_results(
@@ -503,7 +412,7 @@ if __name__ == "__main__":
         "--type",
         type=str,
         default="ab",
-        choices=["ab", "open_ended", "truthful_qa", "mmlu"],
+        choices=["ab", "open_ended"],
     )
     parser.add_argument("--override_vector", type=int, default=None)
     parser.add_argument("--override_vector_model", type=str, default=None)
@@ -521,7 +430,7 @@ if __name__ == "__main__":
     if steering_settings.type == "ab":
         plot_layer_sweeps(args.layers, args.behaviors, steering_settings, args.title)
 
-    if len(args.layers) == 1 and steering_settings.type != "truthful_qa":
+    if len(args.layers) == 1:
         plot_effect_on_behaviors(args.layers[0], args.multipliers, args.behaviors, steering_settings, args.title)
 
     for behavior in args.behaviors:
@@ -536,6 +445,3 @@ if __name__ == "__main__":
         elif steering_settings.type == "open_ended":
             for layer in args.layers:
                 plot_open_ended_results(layer, args.multipliers, steering_settings)
-        elif steering_settings.type == "truthful_qa" or steering_settings.type == "mmlu":
-            for layer in args.layers:
-                plot_tqa_mmlu_results_for_layer(layer, args.multipliers, steering_settings)

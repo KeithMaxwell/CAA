@@ -11,7 +11,7 @@ import os
 from matplotlib import pyplot as plt
 import argparse
 from sklearn.decomposition import PCA
-from behaviors import HUMAN_NAMES, get_activations_path, get_ab_data_path, get_analysis_dir, ALL_BEHAVIORS
+from behaviors import HUMAN_NAMES, get_activations_path, get_ab_data_path, get_analysis_dir, HALLUCINATION
 from utils.helpers import get_model_path, set_plotting_settings
 from tqdm import tqdm
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         "--behaviors",
         nargs="+",
         type=str,
-        default=ALL_BEHAVIORS,
+        default=[HALLUCINATION],
     )
     parser.add_argument(
         "--layers",

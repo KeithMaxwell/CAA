@@ -15,105 +15,39 @@ HF_TOKEN=huggingface_token_with_access_to_Meta-Llama-3.1-8B
 OPEN_AI_KEY=openai_api_key_with_access_to_gpt4
 ```
 
-## Datasets
+## Dataset
 
-All raw and processed data can be seen in `/datasets`. Original sources are listed below. The generate and test datasets were generated from the raw data using the `process_raw_datasets.py` script.
-
-We use 50 of the contrast pairs for evaluation. The rest are used for generating steering vectors.
-
-### Coordination with other AIs (`coordinate-other-ais`)
-
-Anthropic human generated eval data.
-
-- https://huggingface.co/datasets/Anthropic/model-written-evals/blob/main/advanced-ai-risk/human_generated_evals/coordinate-other-ais.jsonl
-
-### Corrigibility (`corrigible-neutral-HHH`)
-
-Anthropic human generated eval data.
-
-- https://huggingface.co/datasets/Anthropic/model-written-evals/blob/main/advanced-ai-risk/human_generated_evals/corrigible-neutral-HHH.jsonl
-
-### Hallucination (`hallucination`)
-
-Generated using GPT-4 by Wuschel Schulz [(source)](https://github.com/wusche1/CAA_hallucination/tree/main/paper/Hallucination/Datasets/HOCUS/questions)
-
-### Myopia (`myopic-reward`)
-
-Anthropic human generated eval data.
-
-- https://huggingface.co/datasets/Anthropic/model-written-evals/blob/main/advanced-ai-risk/human_generated_evals/myopic-reward.jsonl
-
-### Survival Instinct (`survival-instinct`)
-
-Anthropic human generated eval data.
-
-- https://huggingface.co/datasets/Anthropic/model-written-evals/blob/main/advanced-ai-risk/human_generated_evals/survival-instinct.jsonl
-
-### Sycophancy (`sycophancy`)
-
-Mixture of Anthropic's Sycophancy datasets.
-
-- https://huggingface.co/datasets/Anthropic/model-written-evals/blob/main/sycophancy/
-
-### Refusal (`refusal`)
-
-Generated using GPT-4.
-
-### TruthfulQA (`truthfulqa`) (_test only_)
-
-- https://huggingface.co/datasets/truthful_qa/tree/main
-
-### MMLU (`mmlu`) (_test only_)
-
-`mmlu_full.json` is the full MMLU test dataset formatted as A/B questions. `mmlu.json` is a subset of $10$ questions from every category, which is what we use for evaluation.
-
-- https://huggingface.co/datasets/cais/mmlu
-
-## Final dataset sizes
-
-```
-coordinate-other-ais: n_generate: 360 | n_test: 50
-corrigible-neutral-HHH: n_generate: 290 | n_test: 50
-hallucination: n_generate: 1000 | n_test: 50
-myopic-reward: n_generate: 950 | n_test: 50
-survival-instinct: n_generate: 903 | n_test: 50
-sycophancy: n_generate: 1000 | n_test: 50
-refusal: n_generate: 408 | n_test: 50
-```
+This repository now focuses solely on hallucination reduction. All raw and processed data live under `/datasets/hallucination` and were generated using GPT-4 by Wuschel Schulz [(source)](https://github.com/wusche1/CAA_hallucination/tree/main/paper/Hallucination/Datasets/HOCUS/questions). The generate/test splits are created via `process_raw_datasets.py`, with 50 contrast pairs reserved for evaluation and the remainder used to form steering vectors.
 
 ## Evaluation
 
-For each behavior, we can evaluate the model on the following test sets:
+We evaluate hallucination mitigation with two formats:
 
-- A/B questions - a held out portion of 50 questions from the original dataset
-- Open-ended questions
-  - For most behaviors, we use the original held out A/B questions but reformatted to be open-ended rather than multiple choice
-  - For sycophancy, we generated different open-ended questions using GPT-4 to cover a wider range of sycophantic behaviors
-- TruthfulQA
-- MMLU
+- **A/B questions**: contrast pairs with explicit correct/incorrect answers to quantify probability mass on grounded responses.
+- **Open-ended prompts**: the same held-out questions without answer options, scored downstream with `scoring.py` to measure hallucination severity.
 
 ## Available commands
 
 ```bash
-# Generate steering vectors for layers of the model for a certain behavior
-python generate_vectors.py --layers $(seq 0 31) --save_activations --model_size "8b" --behaviors sycophancy
+# Generate steering vectors for hallucination
+python generate_vectors.py --layers $(seq 0 31) --save_activations --model_size "8b" --behaviors hallucination
 
 # Normalize steering vectors per layer to have the same norm
 python normalize_vectors.py
 
-# Evaluate model on A/B, open-ended or TruthfulQA test sets while using CAA
-python prompting_with_steering.py --behaviors sycophancy --layers $(seq 0 31) --multipliers -1 0 1 --type ab --model_size "8b"
-python prompting_with_steering.py --behaviors sycophancy --layers 13 --multipliers -2 -1.5 -1 -0.5 0 0.5 1 1.5 2 --type ab --model_size "8b" --system_prompt pos
+# Evaluate hallucination on A/B or open-ended prompts while using CAA
+python prompting_with_steering.py --behaviors hallucination --layers $(seq 0 31) --multipliers -1 0 1 --type ab --model_size "8b"
+python prompting_with_steering.py --behaviors hallucination --layers 13 --multipliers -2 -1.5 -1 -0.5 0 0.5 1 1.5 2 --type ab --model_size "8b" --system_prompt pos
 
 # Plot PCA of constrastive activations
-python plot_activations.py --behaviors sycophancy --layers $(seq 0 31) --model_size "8b"
+python plot_activations.py --behaviors hallucination --layers $(seq 0 31) --model_size "8b"
 
 # Plot results of CAA steering effect
 python plot_results.py --layers $(seq 0 31) --multipliers 1 --type ab
-python plot_results.py --layers $(seq 0 31) --multipliers -1 0 1 --behaviors sycophancy --type ab
+python plot_results.py --layers $(seq 0 31) --multipliers -1 0 1 --behaviors hallucination --type ab
 
-# Finetune a llama on a behavioral dataset using supervised finetuning on the A/B tokens
-python finetune_llama.py --behavior sycophancy --direction pos
+# Finetune a llama on the hallucination dataset using supervised finetuning on the A/B tokens
+python finetune_llama.py --behavior hallucination --direction pos
 
 # Plot similarites of steering vectors
 python analyze_vectors.py
@@ -140,8 +74,7 @@ See `/activation_steering_interp.ipynb`
 
 ## Vectors for use
 
-Unnormalized vectors can be found in `/vectors` - they mostly have the same norms-per-layer, except for `sycophancy`
-and `survival-instinct` which ended up a bit lower norm (dataset artefact). Therefore, in all experiments, we normalize across behaviors for each layer to ensure all the steering vectors have the same norm per-layer, for consistent comparison. The script that does this is in `normalize_vectors.py`. `prompting_with_steering.py` uses the normalized vectors.
+Hallucination steering vectors live in `/vectors/hallucination`. `normalize_vectors.py` rescales each layer to unit norm before running `prompting_with_steering.py` so multipliers are comparable across layers.
 
 ## License
 

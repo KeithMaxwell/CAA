@@ -2,7 +2,7 @@
 Use CAA to steer the model
 
 Usage:
-python prompting_with_steering.py --behaviors sycophancy --layers 10 --multipliers 0.1 0.5 1 2 5 10 --type ab --model_size 8b
+python prompting_with_steering.py --behaviors hallucination --layers 10 --multipliers 0.1 0.5 1 2 5 10 --type ab --model_size 8b
 """
 
 import json
@@ -19,10 +19,8 @@ from behaviors import (
     get_open_ended_test_data,
     get_steering_vector,
     get_system_prompt,
-    get_truthful_qa_data,
-    get_mmlu_data,
     get_ab_test_data,
-    ALL_BEHAVIORS,
+    HALLUCINATION,
     get_results_dir,
 )
 
@@ -70,31 +68,6 @@ def process_item_open_ended(
     }
 
 
-def process_item_tqa_mmlu(
-    item: Dict[str, str],
-    model: LlamaWrapper,
-    system_prompt: Optional[str],
-    a_token_id: int,
-    b_token_id: int,
-) -> Dict[str, str]:
-    prompt = item["prompt"]
-    correct = item["correct"]
-    incorrect = item["incorrect"]
-    category = item["category"]
-    model_output = model.get_logits_from_text(
-        user_input=prompt, model_output="(", system_prompt=system_prompt
-    )
-    a_prob, b_prob = get_a_b_probs(model_output, a_token_id, b_token_id)
-    return {
-        "question": prompt,
-        "correct": correct,
-        "incorrect": incorrect,
-        "a_prob": a_prob,
-        "b_prob": b_prob,
-        "category": category,
-    }
-
-
 def test_steering(
     layers: List[int], multipliers: List[int], settings: SteeringSettings, overwrite=False
 ):
@@ -109,14 +82,10 @@ def test_steering(
     process_methods = {
         "ab": process_item_ab,
         "open_ended": process_item_open_ended,
-        "truthful_qa": process_item_tqa_mmlu,
-        "mmlu": process_item_tqa_mmlu,
     }
     test_datasets = {
         "ab": get_ab_test_data(settings.behavior),
         "open_ended": get_open_ended_test_data(settings.behavior),
-        "truthful_qa": get_truthful_qa_data(),
-        "mmlu": get_mmlu_data(),
     }
     model = LlamaWrapper(
         HUGGINGFACE_TOKEN,
@@ -176,13 +145,13 @@ if __name__ == "__main__":
         "--behaviors",
         type=str,
         nargs="+",
-        default=ALL_BEHAVIORS
+        default=[HALLUCINATION]
     )
     parser.add_argument(
         "--type",
         type=str,
         required=True,
-        choices=["ab", "open_ended", "truthful_qa", "mmlu"],
+        choices=["ab", "open_ended"],
     )
     parser.add_argument("--system_prompt", type=str, default=None, choices=["pos", "neg"], required=False)
     parser.add_argument("--override_vector", type=int, default=None)

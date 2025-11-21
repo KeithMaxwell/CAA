@@ -22,7 +22,7 @@ from behaviors import (
     get_ab_data_path,
     get_vector_path,
     get_activations_path,
-    ALL_BEHAVIORS
+    HALLUCINATION,
 )
 
 load_dotenv()
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", nargs="+", type=int, default=list(range(32)))
     parser.add_argument("--save_activations", action="store_true", default=False)
     parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
-    parser.add_argument("--behaviors", nargs="+", type=str, default=ALL_BEHAVIORS)
+    parser.add_argument("--behaviors", nargs="+", type=str, default=[HALLUCINATION])
 
     args = parser.parse_args()
     generate_save_vectors(

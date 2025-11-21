@@ -8,7 +8,7 @@ import torch as t
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from behaviors import ALL_BEHAVIORS, get_analysis_dir, HUMAN_NAMES, get_steering_vector, ANALYSIS_PATH
+from behaviors import HALLUCINATION, get_analysis_dir, HUMAN_NAMES, get_steering_vector, ANALYSIS_PATH
 from utils.helpers import get_model_path, model_name_format, set_plotting_settings
 from tqdm import tqdm
 
@@ -47,5 +47,4 @@ def plot_per_layer_similarities(model_size: str, behavior: str):
     plt.close()
 
 if __name__ == "__main__":
-    for behavior in tqdm(ALL_BEHAVIORS):
-        plot_per_layer_similarities("8b", behavior)
+    plot_per_layer_similarities("8b", HALLUCINATION)
