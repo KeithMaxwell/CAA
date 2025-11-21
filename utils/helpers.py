@@ -63,23 +63,10 @@ def make_tensor_save_suffix(layer, model_name_path):
     return f'{layer}_{model_name_path.split("/")[-1]}'
 
 
-def get_model_path(size: str, is_base: bool):
-    if is_base:
-        return f"meta-llama/Llama-2-{size}-hf"
-    else:
-        return f"meta-llama/Llama-2-{size}-chat-hf"
+def get_model_path(size: str):
+    if size != "8b":
+        raise ValueError("Only the 8B model size is supported for Llama 3.1.")
+    return "meta-llama/Meta-Llama-3.1-8B"
 
 def model_name_format(name: str) -> str:
-    name = name.lower()
-    is_chat = "chat" in name
-    is_7b = "7b" in name
-    if is_chat:
-        if is_7b:
-            return "Llama 2 Chat 7B"
-        else:
-            return "Llama 2 Chat 13B"
-    else:
-        if is_7b:
-            return "Llama 2 7B"
-        else:
-            return "Llama 2 13B"
+    return "Llama 3.1 8B"
