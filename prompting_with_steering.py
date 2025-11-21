@@ -2,7 +2,7 @@
 Use CAA to steer the model
 
 Usage:
-python prompting_with_steering.py --behaviors sycophancy --layers 10 --multipliers 0.1 0.5 1 2 5 10 --type ab --use_base_model --model_size 7b
+python prompting_with_steering.py --behaviors hallucination --layers 10 --multipliers 0.1 0.5 1 2 5 10 --type ab --model_size 8b
 """
 
 import json
@@ -19,10 +19,8 @@ from behaviors import (
     get_open_ended_test_data,
     get_steering_vector,
     get_system_prompt,
-    get_truthful_qa_data,
-    get_mmlu_data,
     get_ab_test_data,
-    ALL_BEHAVIORS,
+    HALLUCINATION,
     get_results_dir,
 )
 
@@ -70,31 +68,6 @@ def process_item_open_ended(
     }
 
 
-def process_item_tqa_mmlu(
-    item: Dict[str, str],
-    model: LlamaWrapper,
-    system_prompt: Optional[str],
-    a_token_id: int,
-    b_token_id: int,
-) -> Dict[str, str]:
-    prompt = item["prompt"]
-    correct = item["correct"]
-    incorrect = item["incorrect"]
-    category = item["category"]
-    model_output = model.get_logits_from_text(
-        user_input=prompt, model_output="(", system_prompt=system_prompt
-    )
-    a_prob, b_prob = get_a_b_probs(model_output, a_token_id, b_token_id)
-    return {
-        "question": prompt,
-        "correct": correct,
-        "incorrect": incorrect,
-        "a_prob": a_prob,
-        "b_prob": b_prob,
-        "category": category,
-    }
-
-
 def test_steering(
     layers: List[int], multipliers: List[int], settings: SteeringSettings, overwrite=False
 ):
@@ -109,19 +82,14 @@ def test_steering(
     process_methods = {
         "ab": process_item_ab,
         "open_ended": process_item_open_ended,
-        "truthful_qa": process_item_tqa_mmlu,
-        "mmlu": process_item_tqa_mmlu,
     }
     test_datasets = {
         "ab": get_ab_test_data(settings.behavior),
         "open_ended": get_open_ended_test_data(settings.behavior),
-        "truthful_qa": get_truthful_qa_data(),
-        "mmlu": get_mmlu_data(),
     }
     model = LlamaWrapper(
         HUGGINGFACE_TOKEN,
         size=settings.model_size,
-        use_chat=not settings.use_base_model,
         override_model_weights_path=settings.override_model_weights_path,
     )
     a_token_id = model.tokenizer.convert_tokens_to_ids("A")
@@ -136,9 +104,7 @@ def test_steering(
             vector = get_steering_vector(settings.behavior, settings.override_vector, name_path, normalized=True)
         else:
             vector = get_steering_vector(settings.behavior, layer, name_path, normalized=True)
-        if settings.model_size != "7b":
-            vector = vector.half()
-        vector = vector.to(model.device)
+        vector = vector.to(model.device).to(next(model.model.parameters()).dtype)
         for multiplier in multipliers:
             result_save_suffix = settings.make_result_save_suffix(
                 layer=layer, multiplier=multiplier
@@ -179,19 +145,18 @@ if __name__ == "__main__":
         "--behaviors",
         type=str,
         nargs="+",
-        default=ALL_BEHAVIORS
+        default=[HALLUCINATION]
     )
     parser.add_argument(
         "--type",
         type=str,
         required=True,
-        choices=["ab", "open_ended", "truthful_qa", "mmlu"],
+        choices=["ab", "open_ended"],
     )
     parser.add_argument("--system_prompt", type=str, default=None, choices=["pos", "neg"], required=False)
     parser.add_argument("--override_vector", type=int, default=None)
     parser.add_argument("--override_vector_model", type=str, default=None)
-    parser.add_argument("--use_base_model", action="store_true", default=False)
-    parser.add_argument("--model_size", type=str, choices=["7b", "13b"], default="7b")
+    parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     parser.add_argument("--override_model_weights_path", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true", default=False)
     
@@ -202,7 +167,6 @@ if __name__ == "__main__":
     steering_settings.system_prompt = args.system_prompt
     steering_settings.override_vector = args.override_vector
     steering_settings.override_vector_model = args.override_vector_model
-    steering_settings.use_base_model = args.use_base_model
     steering_settings.model_size = args.model_size
     steering_settings.override_model_weights_path = args.override_model_weights_path
 

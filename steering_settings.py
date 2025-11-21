@@ -5,13 +5,13 @@ from behaviors import ALL_BEHAVIORS
 
 @dataclass
 class SteeringSettings:
-    behavior: str = "sycophancy"
-    type: Literal["open_ended", "ab", "truthful_qa", "mmlu"] = "ab"
+    behavior: str = "hallucination"
+    type: Literal["open_ended", "ab"] = "ab"
     system_prompt: Optional[Literal["pos", "neg"]] = None
     override_vector: Optional[int] = None
     override_vector_model: Optional[str] = None
-    use_base_model: bool = False
-    model_size: str = "7b"
+    use_base_model: bool = True
+    model_size: str = "8b"
     override_model_weights_path: Optional[str] = None
 
     def __post_init__(self):
@@ -30,7 +30,6 @@ class SteeringSettings:
             "system_prompt": self.system_prompt,
             "override_vector": self.override_vector,
             "override_vector_model": self.override_vector_model,
-            "use_base_model": self.use_base_model,
             "model_size": self.model_size,
             "override_model_weights_path": self.override_model_weights_path,
         }
@@ -50,7 +49,6 @@ class SteeringSettings:
             "system_prompt": self.system_prompt,
             "override_vector": self.override_vector,
             "override_vector_model": self.override_vector_model,
-            "use_base_model": self.use_base_model,
             "model_size": self.model_size,
             "override_model_weights_path": self.override_model_weights_path,
         }
@@ -69,14 +67,5 @@ class SteeringSettings:
         return [os.path.join(directory, f) for f in matching_files]
     
     def get_formatted_model_name(self):
-        if self.use_base_model:
-            if self.model_size == "7b":
-                return "Llama 2 7B"
-            else:
-                return "Llama 2 13B"
-        else:
-            if self.model_size == "7b":
-                return "Llama 2 7B Chat"
-            else:
-                return "Llama 2 13B Chat"
+        return "Llama 3.1 8B"
         

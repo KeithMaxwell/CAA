@@ -47,10 +47,8 @@ def make_generate_test_datasets(behavior):
                 "question": item["question"].split("\n")[0].strip(),
             }
         )
-    if behavior != "sycophancy":
-        # Use custom open-ended test for sycophancy
-        with open(write_open_ended_test_path, "w") as f:
-            json.dump(open_ended_test, f, indent=4)
+    with open(write_open_ended_test_path, "w") as f:
+        json.dump(open_ended_test, f, indent=4)
     print(f"{behavior}: n_generate: {n_generate} | n_test: {N_TEST}")
 
 def main():

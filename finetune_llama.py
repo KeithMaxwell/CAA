@@ -2,7 +2,7 @@
 Finetune the Llama model on the answer behavior dataset.
 
 Usage:
-python finetune_llama.py --behavior sycophancy --direction pos 
+python finetune_llama.py --behavior hallucination --direction pos
 """
 
 import argparse
@@ -14,7 +14,8 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import os
 from dotenv import load_dotenv
-from utils.tokenize import tokenize_llama_chat
+from utils.tokenize import tokenize_llama_base
+from utils.helpers import get_model_path
 from torch.distributed.optim import ZeroRedundancyOptimizer
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
@@ -28,7 +29,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 load_dotenv()
 
 HUGGINGFACE_TOKEN = os.getenv("HF_TOKEN")
-MODEL = "meta-llama/Llama-2-7b-chat-hf"
+MODEL = get_model_path("8b")
 NUM_PROCESSES = 2
 
 
@@ -39,7 +40,7 @@ class FinetuneDataset(Dataset):
         self.tokenizer = tokenizer
 
     def prompt_to_tokens(self, instruction, model_output):
-        tokens = tokenize_llama_chat(
+        tokens = tokenize_llama_base(
             self.tokenizer,
             user_input=instruction,
             model_output=model_output,
@@ -105,7 +106,7 @@ def run_eval_loop(model_path, device, max_new_tokens=50):
         user_input = input(">> ")
         if user_input == "exit":
             break
-        tokens = tokenize_llama_chat(tokenizer, user_input)
+        tokens = tokenize_llama_base(tokenizer, user_input)
         tokens = t.tensor(tokens).unsqueeze(0).to(device)
         logits = model.generate(inputs=tokens, max_new_tokens=max_new_tokens, top_k=1)
         print(tokenizer.batch_decode(logits)[0].split("[/INST]")[-1].strip())

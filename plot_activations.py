@@ -2,7 +2,7 @@
 Script to plot PCA of constrastive activations
 
 Usage:
-python plot_activations.py --behaviors sycophancy --layers 9 10 11 --use_base_model --model_size 7b
+python plot_activations.py --behaviors sycophancy --layers 9 10 11 --model_size 8b
 """
 
 import json
@@ -11,7 +11,7 @@ import os
 from matplotlib import pyplot as plt
 import argparse
 from sklearn.decomposition import PCA
-from behaviors import HUMAN_NAMES, get_activations_path, get_ab_data_path, get_analysis_dir, ALL_BEHAVIORS
+from behaviors import HUMAN_NAMES, get_activations_path, get_ab_data_path, get_analysis_dir, HALLUCINATION
 from utils.helpers import get_model_path, set_plotting_settings
 from tqdm import tqdm
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         "--behaviors",
         nargs="+",
         type=str,
-        default=ALL_BEHAVIORS,
+        default=[HALLUCINATION],
     )
     parser.add_argument(
         "--layers",
@@ -128,11 +128,9 @@ if __name__ == "__main__":
         type=int,
         required=True,
     )
-    parser.add_argument("--use_base_model", action="store_true", default=False)
-    parser.add_argument("--model_size", type=str, choices=["7b", "13b"], default="7b")
+    parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     args = parser.parse_args()
-    model_name_path = get_model_path(args.model_size, args.use_base_model)
-    args = parser.parse_args()
+    model_name_path = get_model_path(args.model_size)
     for behavior in args.behaviors:
         print(f"plotting {behavior} activations PCA")
         for layer in tqdm(args.layers):
