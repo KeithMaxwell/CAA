@@ -3,10 +3,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from utils.helpers import add_vector_from_position, find_instruction_end_postion, get_model_path
-from utils.tokenize import (
-    tokenize_llama_base,
-    ADD_FROM_POS_BASE,
-)
+from utils.tokenize import PromptTemplate, get_prompt_template, tokenize_llama_base
 from typing import Optional
 
 
@@ -114,9 +111,11 @@ class LlamaWrapper:
         hf_token: str,
         size: str = "8b",
         override_model_weights_path: Optional[str] = None,
+        prompt_template: PromptTemplate = get_prompt_template(),
     ):
         self.device = "cuda" if t.cuda.is_available() else "cpu"
         self.model_name_path = get_model_path(size)
+        self.prompt_template = prompt_template
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name_path, token=hf_token
         )
@@ -128,7 +127,7 @@ class LlamaWrapper:
         if size != "8b":
             self.model = self.model.half()
         self.model = self.model.to(self.device)
-        self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_BASE)[1:]).to(
+        self.END_STR = t.tensor(self.tokenizer.encode(self.prompt_template.output_prefix)[1:]).to(
             self.device
         )
         for i, layer in enumerate(self.model.model.layers):
@@ -154,7 +153,12 @@ class LlamaWrapper:
             return self.tokenizer.batch_decode(generated)[0]
 
     def generate_text(self, user_input: str, model_output: Optional[str] = None, system_prompt: Optional[str] = None, max_new_tokens: int = 50) -> str:
-        tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
+        tokens = tokenize_llama_base(
+            tokenizer=self.tokenizer,
+            prompt_template=self.prompt_template,
+            user_input=user_input,
+            model_output=model_output,
+        )
         tokens = t.tensor(tokens).unsqueeze(0).to(self.device)
         return self.generate(tokens, max_new_tokens=max_new_tokens)
 
@@ -166,7 +170,12 @@ class LlamaWrapper:
             return logits
 
     def get_logits_from_text(self, user_input: str, model_output: Optional[str] = None, system_prompt: Optional[str] = None) -> t.Tensor:
-        tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
+        tokens = tokenize_llama_base(
+            tokenizer=self.tokenizer,
+            prompt_template=self.prompt_template,
+            user_input=user_input,
+            model_output=model_output,
+        )
         tokens = t.tensor(tokens).unsqueeze(0).to(self.device)
         return self.get_logits(tokens)
 

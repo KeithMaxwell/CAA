@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
-from utils.tokenize import tokenize_llama_base
+from utils.tokenize import get_prompt_template, tokenize_llama_base
 from behaviors import (
     get_vector_dir,
     get_activations_dir,
@@ -31,17 +31,19 @@ HUGGINGFACE_TOKEN = os.getenv("HF_TOKEN")
 
 
 class ComparisonDataset(Dataset):
-    def __init__(self, data_path, token, model_name_path):
+    def __init__(self, data_path, token, model_name_path, prompt_template):
         with open(data_path, "r") as f:
             self.data = json.load(f)
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name_path, token=token
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.prompt_template = prompt_template
 
     def prompt_to_tokens(self, instruction, model_output):
         tokens = tokenize_llama_base(
             self.tokenizer,
+            prompt_template=self.prompt_template,
             user_input=instruction,
             model_output=model_output,
         )
@@ -52,9 +54,9 @@ class ComparisonDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.data[idx]
-        p_text = item["answer_matching_behavior"]
-        n_text = item["answer_not_matching_behavior"]
-        q_text = item["question"]
+        p_text = self.prompt_template.get_positive(item)
+        n_text = self.prompt_template.get_negative(item)
+        q_text = self.prompt_template.get_input(item)
         p_tokens = self.prompt_to_tokens(q_text, p_text)
         n_tokens = self.prompt_to_tokens(q_text, n_text)
         return p_tokens, n_tokens
@@ -64,6 +66,7 @@ def generate_save_vectors_for_behavior(
     save_activations: bool,
     behavior: List[str],
     model: LlamaWrapper,
+    prompt_template,
 ):
     data_path = get_ab_data_path(behavior)
     if not os.path.exists(get_vector_dir(behavior)):
@@ -81,6 +84,7 @@ def generate_save_vectors_for_behavior(
         data_path,
         HUGGINGFACE_TOKEN,
         model.model_name_path,
+        prompt_template,
     )
 
     for p_tokens, n_tokens in tqdm(dataset, desc="Processing prompts"):
@@ -122,6 +126,7 @@ def generate_save_vectors(
     save_activations: bool,
     model_size: str,
     behaviors: List[str],
+    prompt_template_name: str,
 ):
     """
     layers: list of layers to generate vectors for
@@ -129,12 +134,13 @@ def generate_save_vectors(
     model_size: size of the model to use, currently only "8b" is supported
     behaviors: behaviors to generate vectors for
     """
+    prompt_template = get_prompt_template(prompt_template_name)
     model = LlamaWrapper(
-        HUGGINGFACE_TOKEN, size=model_size
+        HUGGINGFACE_TOKEN, size=model_size, prompt_template=prompt_template
     )
     for behavior in behaviors:
         generate_save_vectors_for_behavior(
-            layers, save_activations, behavior, model
+            layers, save_activations, behavior, model, prompt_template
         )
 
 
@@ -144,11 +150,13 @@ if __name__ == "__main__":
     parser.add_argument("--save_activations", action="store_true", default=False)
     parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     parser.add_argument("--behaviors", nargs="+", type=str, default=[HALLUCINATION])
+    parser.add_argument("--prompt_template", type=str, choices=["qa", "summarization"], default="qa")
 
     args = parser.parse_args()
     generate_save_vectors(
         args.layers,
         args.save_activations,
         args.model_size,
-        args.behaviors
+        args.behaviors,
+        args.prompt_template,
     )
