@@ -2,7 +2,7 @@
 Generates steering vectors for each layer of the model by averaging the activations of all the positive and negative examples.
 
 Example usage:
-python generate_vectors.py --layers $(seq 0 31) --save_activations --use_base_model --model_size 7b --behaviors sycophancy
+python generate_vectors.py --layers $(seq 0 31) --save_activations --model_size 8b --behaviors sycophancy
 """
 
 import json
@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
-from utils.tokenize import tokenize_llama_base, tokenize_llama_chat
+from utils.tokenize import tokenize_llama_base
 from behaviors import (
     get_vector_dir,
     get_activations_dir,
@@ -31,28 +31,20 @@ HUGGINGFACE_TOKEN = os.getenv("HF_TOKEN")
 
 
 class ComparisonDataset(Dataset):
-    def __init__(self, data_path, token, model_name_path, use_chat):
+    def __init__(self, data_path, token, model_name_path):
         with open(data_path, "r") as f:
             self.data = json.load(f)
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name_path, token=token
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.use_chat = use_chat
 
     def prompt_to_tokens(self, instruction, model_output):
-        if self.use_chat:
-            tokens = tokenize_llama_chat(
-                self.tokenizer,
-                user_input=instruction,
-                model_output=model_output,
-            )
-        else:
-            tokens = tokenize_llama_base(
-                self.tokenizer,
-                user_input=instruction,
-                model_output=model_output,
-            )
+        tokens = tokenize_llama_base(
+            self.tokenizer,
+            user_input=instruction,
+            model_output=model_output,
+        )
         return t.tensor(tokens).unsqueeze(0)
 
     def __len__(self):
@@ -89,7 +81,6 @@ def generate_save_vectors_for_behavior(
         data_path,
         HUGGINGFACE_TOKEN,
         model.model_name_path,
-        model.use_chat,
     )
 
     for p_tokens, n_tokens in tqdm(dataset, desc="Processing prompts"):
@@ -129,19 +120,17 @@ def generate_save_vectors_for_behavior(
 def generate_save_vectors(
     layers: List[int],
     save_activations: bool,
-    use_base_model: bool,
     model_size: str,
     behaviors: List[str],
 ):
     """
     layers: list of layers to generate vectors for
     save_activations: if True, save the activations for each layer
-    use_base_model: Whether to use the base model instead of the chat model
-    model_size: size of the model to use, either "7b" or "13b"
+    model_size: size of the model to use, currently only "8b" is supported
     behaviors: behaviors to generate vectors for
     """
     model = LlamaWrapper(
-        HUGGINGFACE_TOKEN, size=model_size, use_chat=not use_base_model
+        HUGGINGFACE_TOKEN, size=model_size
     )
     for behavior in behaviors:
         generate_save_vectors_for_behavior(
@@ -153,15 +142,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--layers", nargs="+", type=int, default=list(range(32)))
     parser.add_argument("--save_activations", action="store_true", default=False)
-    parser.add_argument("--use_base_model", action="store_true", default=False)
-    parser.add_argument("--model_size", type=str, choices=["7b", "13b"], default="7b")
+    parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     parser.add_argument("--behaviors", nargs="+", type=str, default=ALL_BEHAVIORS)
 
     args = parser.parse_args()
     generate_save_vectors(
         args.layers,
         args.save_activations,
-        args.use_base_model,
         args.model_size,
         args.behaviors
     )

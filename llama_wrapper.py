@@ -4,10 +4,8 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from utils.helpers import add_vector_from_position, find_instruction_end_postion, get_model_path
 from utils.tokenize import (
-    tokenize_llama_chat,
     tokenize_llama_base,
     ADD_FROM_POS_BASE,
-    ADD_FROM_POS_CHAT,
 )
 from typing import Optional
 
@@ -114,13 +112,11 @@ class LlamaWrapper:
     def __init__(
         self,
         hf_token: str,
-        size: str = "7b",
-        use_chat: bool = True,
+        size: str = "8b",
         override_model_weights_path: Optional[str] = None,
     ):
         self.device = "cuda" if t.cuda.is_available() else "cpu"
-        self.use_chat = use_chat
-        self.model_name_path = get_model_path(size, not use_chat)
+        self.model_name_path = get_model_path(size)
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name_path, token=hf_token
         )
@@ -129,17 +125,12 @@ class LlamaWrapper:
         )
         if override_model_weights_path is not None:
             self.model.load_state_dict(t.load(override_model_weights_path))
-        if size != "7b":
+        if size != "8b":
             self.model = self.model.half()
         self.model = self.model.to(self.device)
-        if use_chat:
-            self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_CHAT)[1:]).to(
-                self.device
-            )
-        else:
-            self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_BASE)[1:]).to(
-                self.device
-            )
+        self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_BASE)[1:]).to(
+            self.device
+        )
         for i, layer in enumerate(self.model.model.layers):
             self.model.model.layers[i] = BlockOutputWrapper(
                 layer, self.model.lm_head, self.model.model.norm, self.tokenizer
@@ -163,12 +154,7 @@ class LlamaWrapper:
             return self.tokenizer.batch_decode(generated)[0]
 
     def generate_text(self, user_input: str, model_output: Optional[str] = None, system_prompt: Optional[str] = None, max_new_tokens: int = 50) -> str:
-        if self.use_chat:
-            tokens = tokenize_llama_chat(
-                tokenizer=self.tokenizer, user_input=user_input, model_output=model_output, system_prompt=system_prompt
-            )
-        else:
-            tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
+        tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
         tokens = t.tensor(tokens).unsqueeze(0).to(self.device)
         return self.generate(tokens, max_new_tokens=max_new_tokens)
 
@@ -180,12 +166,7 @@ class LlamaWrapper:
             return logits
 
     def get_logits_from_text(self, user_input: str, model_output: Optional[str] = None, system_prompt: Optional[str] = None) -> t.Tensor:
-        if self.use_chat:
-            tokens = tokenize_llama_chat(
-                tokenizer=self.tokenizer, user_input=user_input, model_output=model_output, system_prompt=system_prompt
-            )
-        else:
-            tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
+        tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
         tokens = t.tensor(tokens).unsqueeze(0).to(self.device)
         return self.get_logits(tokens)
 
