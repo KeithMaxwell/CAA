@@ -13,7 +13,7 @@ import argparse
 from typing import List, Dict, Optional
 from tqdm import tqdm
 from utils.helpers import get_a_b_probs
-from utils.tokenize import E_INST
+from utils.tokenize import E_INST, get_prompt_template
 from steering_settings import SteeringSettings
 from behaviors import (
     get_open_ended_test_data,
@@ -34,18 +34,19 @@ def process_item_ab(
     system_prompt: Optional[str],
     a_token_id: int,
     b_token_id: int,
+    prompt_template,
 ) -> Dict[str, str]:
-    question: str = item["question"]
-    answer_matching_behavior = item["answer_matching_behavior"]
-    answer_not_matching_behavior = item["answer_not_matching_behavior"]
+    question: str = prompt_template.get_input(item)
+    answer_matching_behavior = prompt_template.get_positive(item)
+    answer_not_matching_behavior = prompt_template.get_negative(item)
     model_output = model.get_logits_from_text(
         user_input=question, model_output="(", system_prompt=system_prompt
     )
     a_prob, b_prob = get_a_b_probs(model_output, a_token_id, b_token_id)
     return {
-        "question": question,
-        "answer_matching_behavior": answer_matching_behavior,
-        "answer_not_matching_behavior": answer_not_matching_behavior,
+        prompt_template.input_key: question,
+        prompt_template.positive_key: answer_matching_behavior,
+        prompt_template.negative_key: answer_not_matching_behavior,
         "a_prob": a_prob,
         "b_prob": b_prob,
     }
@@ -56,13 +57,14 @@ def process_item_open_ended(
     system_prompt: Optional[str],
     a_token_id: int,
     b_token_id: int,
+    prompt_template,
 ) -> Dict[str, str]:
-    question = item["question"]
+    question = prompt_template.get_open_ended_input(item)
     model_output = model.generate_text(
         user_input=question, system_prompt=system_prompt, max_new_tokens=100
     )
     return {
-        "question": question,
+        prompt_template.input_key: question,
         "model_output": model_output.split(E_INST)[-1].strip(),
         "raw_model_output": model_output,
     }
@@ -87,10 +89,12 @@ def test_steering(
         "ab": get_ab_test_data(settings.behavior),
         "open_ended": get_open_ended_test_data(settings.behavior),
     }
+    prompt_template = get_prompt_template(settings.prompt_template)
     model = LlamaWrapper(
         HUGGINGFACE_TOKEN,
         size=settings.model_size,
         override_model_weights_path=settings.override_model_weights_path,
+        prompt_template=prompt_template,
     )
     a_token_id = model.tokenizer.convert_tokens_to_ids("A")
     b_token_id = model.tokenizer.convert_tokens_to_ids("B")
@@ -128,6 +132,7 @@ def test_steering(
                     system_prompt=get_system_prompt(settings.behavior, settings.system_prompt),
                     a_token_id=a_token_id,
                     b_token_id=b_token_id,
+                    prompt_template=prompt_template,
                 )
                 results.append(result)
             with open(
@@ -158,6 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("--override_vector_model", type=str, default=None)
     parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     parser.add_argument("--override_model_weights_path", type=str, default=None)
+    parser.add_argument("--prompt_template", type=str, choices=["qa", "summarization"], default="qa")
     parser.add_argument("--overwrite", action="store_true", default=False)
     
     args = parser.parse_args()
@@ -169,6 +175,7 @@ if __name__ == "__main__":
     steering_settings.override_vector_model = args.override_vector_model
     steering_settings.model_size = args.model_size
     steering_settings.override_model_weights_path = args.override_model_weights_path
+    steering_settings.prompt_template = args.prompt_template
 
     for behavior in args.behaviors:
         steering_settings.behavior = behavior

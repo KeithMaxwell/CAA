@@ -393,6 +393,7 @@ def steering_settings_from_args(args, behavior: str) -> SteeringSettings:
     steering_settings.override_vector = args.override_vector
     steering_settings.override_vector_model = args.override_vector_model
     steering_settings.model_size = args.model_size
+    steering_settings.prompt_template = args.prompt_template
     if len(args.override_weights) > 0:
         steering_settings.override_model_weights_path = args.override_weights[0]
     return steering_settings
@@ -418,6 +419,7 @@ if __name__ == "__main__":
     parser.add_argument("--override_vector_model", type=str, default=None)
     parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     parser.add_argument("--override_weights", type=str, nargs="+", default=[])
+    parser.add_argument("--prompt_template", type=str, choices=["qa", "summarization"], default="qa")
     
     args = parser.parse_args()
 

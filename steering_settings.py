@@ -2,6 +2,7 @@ from typing import Optional, Literal
 import os
 from dataclasses import dataclass
 from behaviors import ALL_BEHAVIORS
+from utils.tokenize import get_prompt_template
 
 @dataclass
 class SteeringSettings:
@@ -13,9 +14,11 @@ class SteeringSettings:
     use_base_model: bool = True
     model_size: str = "8b"
     override_model_weights_path: Optional[str] = None
+    prompt_template: str = "qa"
 
     def __post_init__(self):
         assert self.behavior in ALL_BEHAVIORS, f"Invalid behavior {self.behavior}"
+        get_prompt_template(self.prompt_template)
         
     def make_result_save_suffix(
         self,
@@ -32,6 +35,7 @@ class SteeringSettings:
             "override_vector_model": self.override_vector_model,
             "model_size": self.model_size,
             "override_model_weights_path": self.override_model_weights_path,
+            "prompt_template": self.prompt_template,
         }
         return "_".join([f"{k}={str(v).replace('/', '-')}" for k, v in elements.items() if v is not None])
 
@@ -51,6 +55,7 @@ class SteeringSettings:
             "override_vector_model": self.override_vector_model,
             "model_size": self.model_size,
             "override_model_weights_path": self.override_model_weights_path,
+            "prompt_template": self.prompt_template,
         }
 
         filtered_elements = {k: v for k, v in elements.items() if v is not None}

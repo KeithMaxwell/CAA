@@ -14,7 +14,7 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import os
 from dotenv import load_dotenv
-from utils.tokenize import tokenize_llama_base
+from utils.tokenize import get_prompt_template, tokenize_llama_base
 from utils.helpers import get_model_path
 from torch.distributed.optim import ZeroRedundancyOptimizer
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -34,14 +34,16 @@ NUM_PROCESSES = 2
 
 
 class FinetuneDataset(Dataset):
-    def __init__(self, data_path, tokenizer):
+    def __init__(self, data_path, tokenizer, prompt_template):
         with open(data_path, "r") as f:
             self.data = json.load(f)
         self.tokenizer = tokenizer
+        self.prompt_template = prompt_template
 
     def prompt_to_tokens(self, instruction, model_output):
         tokens = tokenize_llama_base(
             self.tokenizer,
+            prompt_template=self.prompt_template,
             user_input=instruction,
             model_output=model_output,
         )
@@ -55,19 +57,19 @@ class FinetuneDataset(Dataset):
         Returns: Initial string, positive completion label, negative completion label
         """
         item = self.data[idx]
-        p_text = item["answer_matching_behavior"]
-        n_text = item["answer_not_matching_behavior"]
-        q_text = item["question"]
+        p_text = self.prompt_template.get_positive(item)
+        n_text = self.prompt_template.get_negative(item)
+        q_text = self.prompt_template.get_input(item)
         p_tokens = self.prompt_to_tokens(q_text, p_text)
         n_tokens = self.prompt_to_tokens(q_text, n_text)
         return p_tokens[:-2], p_tokens[-2], n_tokens[-2]
 
 
 def get_finetune_dataloader(
-    batch_size, tokenizer, behavior: str, is_test=False, num_workers=NUM_PROCESSES
+    batch_size, tokenizer, behavior: str, prompt_template, is_test=False, num_workers=NUM_PROCESSES
 ):
     data_path = get_ab_data_path(behavior, test=is_test)
-    dataset = FinetuneDataset(data_path, tokenizer)
+    dataset = FinetuneDataset(data_path, tokenizer, prompt_template)
     return DataLoader(
         dataset=dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
@@ -92,7 +94,7 @@ def eval_model(model, dataloader, maximize_positive, device):
     return correct / total
 
 
-def run_eval_loop(model_path, device, max_new_tokens=50):
+def run_eval_loop(model_path, device, prompt_template, max_new_tokens=50):
     device = t.device(f"cuda:0") if t.cuda.is_available() else "cpu"
     tokenizer = AutoTokenizer.from_pretrained(MODEL, token=HUGGINGFACE_TOKEN)
     tokenizer.pad_token = tokenizer.eos_token
@@ -106,7 +108,7 @@ def run_eval_loop(model_path, device, max_new_tokens=50):
         user_input = input(">> ")
         if user_input == "exit":
             break
-        tokens = tokenize_llama_base(tokenizer, user_input)
+        tokens = tokenize_llama_base(tokenizer, prompt_template, user_input)
         tokens = t.tensor(tokens).unsqueeze(0).to(device)
         logits = model.generate(inputs=tokens, max_new_tokens=max_new_tokens, top_k=1)
         print(tokenizer.batch_decode(logits)[0].split("[/INST]")[-1].strip())
@@ -120,9 +122,11 @@ def finetune(
     layer: Optional[int] = None,
     n_epochs=1,
     lr=1e-4,
+    prompt_template_name: str = "qa",
 ):
     maximize_positive = direction == "pos"
     data_path = get_ab_data_path(behavior)
+    prompt_template = get_prompt_template(prompt_template_name)
     # Initialize distributed training
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     # Barrier to ensure all processes have initialized
@@ -155,13 +159,13 @@ def finetune(
     if rank == 0 and not os.path.exists("finetune_logs"):
         os.makedirs("finetune_logs")
     # Setup the DataLoader with DistributedSampler
-    dataset = FinetuneDataset(data_path, tokenizer)
+    dataset = FinetuneDataset(data_path, tokenizer, prompt_template)
     sampler = DistributedSampler(
         dataset, num_replicas=world_size, rank=rank, shuffle=True
     )
     dataloader = DataLoader(dataset, batch_size=1, sampler=sampler)
     test_dataloader = get_finetune_dataloader(
-        batch_size=1, is_test=True, behavior=behavior, tokenizer=tokenizer
+        batch_size=1, is_test=True, behavior=behavior, tokenizer=tokenizer, prompt_template=prompt_template
     )
     # Run the training loop
     loss_fn = t.nn.CrossEntropyLoss()
@@ -230,6 +234,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--direction", type=str, choices=["pos", "neg"], required=True)
     parser.add_argument("--layer", type=int, default=None, required=False)
+    parser.add_argument("--prompt_template", type=str, choices=["qa", "summarization"], default="qa")
     args = parser.parse_args()
     try:
         if t.cuda.is_available() and t.cuda.device_count() >= NUM_PROCESSES:
@@ -237,7 +242,7 @@ if __name__ == "__main__":
             world_size = NUM_PROCESSES
             mp.spawn(
                 finetune,
-                args=(world_size, args.behavior, args.direction, args.layer),
+                args=(world_size, args.behavior, args.direction, args.layer, 1, 1e-4, args.prompt_template),
                 nprocs=world_size,
             )
         else:

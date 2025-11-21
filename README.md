@@ -19,6 +19,15 @@ OPEN_AI_KEY=openai_api_key_with_access_to_gpt4
 
 This repository now focuses solely on hallucination reduction. All raw and processed data live under `/datasets/hallucination` and were generated using GPT-4 by Wuschel Schulz [(source)](https://github.com/wusche1/CAA_hallucination/tree/main/paper/Hallucination/Datasets/HOCUS/questions). The generate/test splits are created via `process_raw_datasets.py`, with 50 contrast pairs reserved for evaluation and the remainder used to form steering vectors.
 
+### Prompt templates
+
+Workflows now support two prompt formats so you can target hallucination mitigation for either QA or abstractive summarization tasks:
+
+- **QA (default):** `Question: ...\nAnswer:` with dataset keys `question`, `answer_matching_behavior`, and `answer_not_matching_behavior`.
+- **Summarization:** `Article: ...\nSummary:` with dataset keys `article`, `summary_matching_behavior`, and `summary_not_matching_behavior`.
+
+Pass `--prompt_template summarization` to `process_raw_datasets.py`, `generate_vectors.py`, `prompting_with_steering.py`, `finetune_llama.py`, or `plot_results.py` to build and evaluate steering vectors on abstractive summarization data.
+
 ## Evaluation
 
 We evaluate hallucination mitigation with two formats:
