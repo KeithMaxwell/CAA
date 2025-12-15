@@ -96,10 +96,10 @@ def eval_model(model, dataloader, maximize_positive, device):
 
 def run_eval_loop(model_path, device, prompt_template, max_new_tokens=50):
     device = t.device(f"cuda:0") if t.cuda.is_available() else "cpu"
-    tokenizer = AutoTokenizer.from_pretrained(MODEL, token=HUGGINGFACE_TOKEN)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL, token=HUGGINGFACE_TOKEN
+        MODEL
     )
     model.load_state_dict(t.load(model_path))
     model = model.to(device)
@@ -134,10 +134,10 @@ def finetune(
     # Device corresponding to current process
     DEVICE = t.device(f"cuda:{rank}") if t.cuda.is_available() else "cpu"
     # Setup tokenizer and model
-    tokenizer = AutoTokenizer.from_pretrained(MODEL, token=HUGGINGFACE_TOKEN)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
     tokenizer.pad_token = tokenizer.eos_token
     model = (
-        AutoModelForCausalLM.from_pretrained(MODEL, token=HUGGINGFACE_TOKEN)
+        AutoModelForCausalLM.from_pretrained(MODEL)
         .half()
         .to(DEVICE)
     )
