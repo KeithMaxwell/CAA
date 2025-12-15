@@ -5,7 +5,9 @@ from matplotlib.ticker import ScalarFormatter
 from utils.helpers import add_vector_from_position, find_instruction_end_postion, get_model_path
 from utils.tokenize import PromptTemplate, get_prompt_template, tokenize_llama_base
 from typing import Optional
-
+import random
+import numpy as np
+from transformers import set_seed
 
 class AttnWrapper(t.nn.Module):
     """
@@ -112,20 +114,32 @@ class LlamaWrapper:
         size: str = "8b",
         override_model_weights_path: Optional[str] = None,
         prompt_template: PromptTemplate = get_prompt_template(),
+        device: int = 0,
+        seed: int = 42
     ):
-        self.device = "cuda" if t.cuda.is_available() else "cpu"
+         # 设置全局随机种子
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        set_seed(seed)  # transformers 提供的便捷函数
+
+        # self.device = "cuda" if t.cuda.is_available() else "cpu"
+        self.device = "cuda:{}".format(device)
+
         self.model_name_path = get_model_path(size)
         self.prompt_template = prompt_template
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name_path, token=hf_token
+            self.model_name_path
         )
         self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name_path, token=hf_token
+            self.model_name_path
         )
         if override_model_weights_path is not None:
             self.model.load_state_dict(t.load(override_model_weights_path))
-        if size != "8b":
-            self.model = self.model.half()
+        # if size != "8b":
+        #     self.model = self.model.half()
         self.model = self.model.to(self.device)
         self.END_STR = t.tensor(self.tokenizer.encode(self.prompt_template.output_prefix)[1:]).to(
             self.device
@@ -148,7 +162,9 @@ class LlamaWrapper:
             instr_pos = find_instruction_end_postion(tokens[0], self.END_STR)
             self.set_from_positions(instr_pos)
             generated = self.model.generate(
-                inputs=tokens, max_new_tokens=max_new_tokens, top_k=1
+                inputs=tokens, 
+                max_new_tokens=max_new_tokens, 
+                top_k=1
             )
             return self.tokenizer.batch_decode(generated)[0]
 

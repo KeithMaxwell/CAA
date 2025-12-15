@@ -64,9 +64,15 @@ def make_tensor_save_suffix(layer, model_name_path):
 
 
 def get_model_path(size: str):
+    """
+        返回模型位置。这里只有llama3 8B
+    """
+
     if size != "8b":
-        raise ValueError("Only the 8B model size is supported for Llama 3.1.")
-    return "meta-llama/Meta-Llama-3.1-8B"
+        raise ValueError("Only the 8B model size is supported for Llama 3.")
+    # return "meta-llama/Meta-Llama-3.1-8B"
+    # 203 机器上llama3 8B的位置
+    return "/data/huhan/.cache/modelscope/hub/models/LLM-Research/Meta-Llama-3-8B-Instruct"
 
 def model_name_format(name: str) -> str:
-    return "Llama 3.1 8B"
+    return "Llama 3 8B"
