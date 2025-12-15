@@ -163,7 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("--override_vector_model", type=str, default=None)
     parser.add_argument("--model_size", type=str, choices=["8b"], default="8b")
     parser.add_argument("--override_model_weights_path", type=str, default=None)
-    parser.add_argument("--prompt_template", type=str, choices=["qa", "summarization"], default="qa")
+    parser.add_argument("--prompt_template", type=str, choices=["qa", "summarization"], default="summarization")
     parser.add_argument("--overwrite", action="store_true", default=False)
     
     args = parser.parse_args()

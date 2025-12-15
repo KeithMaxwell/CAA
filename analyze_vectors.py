@@ -30,6 +30,9 @@ def plot_per_layer_similarities(model_size: str, behavior: str):
     analysis_dir = get_analysis_dir(behavior)
     caa_info = get_caa_info(behavior, model_size)
     all_vectors = caa_info["vectors"]
+    # cosine_similarity 内部会用到 clamp_min 之类的算子，CPU 端对 fp16 支持不全（我们在部署模型的时候使用了fp16减少显存占用
+    # 放到gpu上去算
+    all_vectors = [v.to("cuda") for v in all_vectors]
     n_layers = caa_info["n_layers"]
     model_name = caa_info["model_name"]
     matrix = np.zeros((n_layers, n_layers))

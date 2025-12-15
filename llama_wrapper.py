@@ -110,7 +110,7 @@ class BlockOutputWrapper(t.nn.Module):
 class LlamaWrapper:
     def __init__(
         self,
-        hf_token: str,
+        hf_token: str = "sdksdjsdkj",
         size: str = "8b",
         override_model_weights_path: Optional[str] = None,
         prompt_template: PromptTemplate = get_prompt_template(),
@@ -120,9 +120,9 @@ class LlamaWrapper:
          # 设置全局随机种子
         random.seed(seed)
         np.random.seed(seed)
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+        t.manual_seed(seed)
+        if t.cuda.is_available():
+            t.cuda.manual_seed_all(seed)
         set_seed(seed)  # transformers 提供的便捷函数
 
         # self.device = "cuda" if t.cuda.is_available() else "cpu"
@@ -134,7 +134,7 @@ class LlamaWrapper:
             self.model_name_path
         )
         self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name_path
+            self.model_name_path, torch_dtype=t.float16
         )
         if override_model_weights_path is not None:
             self.model.load_state_dict(t.load(override_model_weights_path))
@@ -164,7 +164,11 @@ class LlamaWrapper:
             generated = self.model.generate(
                 inputs=tokens, 
                 max_new_tokens=max_new_tokens, 
-                top_k=1
+                # top_k=1,
+                temperature=0.9,
+                use_cache=True,
+                do_sample=True,
+                pad_token_id=self.tokenizer.eos_token_id,
             )
             return self.tokenizer.batch_decode(generated)[0]
 

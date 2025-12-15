@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from tqdm import tqdm
 import os
-from dotenv import load_dotenv
+
 from llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
@@ -25,9 +25,7 @@ from behaviors import (
     HALLUCINATION,
 )
 
-load_dotenv()
 
-HUGGINGFACE_TOKEN = os.getenv("HF_TOKEN")
 
 
 class ComparisonDataset(Dataset):
@@ -82,7 +80,7 @@ def generate_save_vectors_for_behavior(
 
     dataset = ComparisonDataset(
         data_path,
-        HUGGINGFACE_TOKEN,
+        "HUGGINGFACE_TOKEN",
         model.model_name_path,
         prompt_template,
     )
@@ -136,7 +134,7 @@ def generate_save_vectors(
     """
     prompt_template = get_prompt_template(prompt_template_name)
     model = LlamaWrapper(
-        HUGGINGFACE_TOKEN, size=model_size, prompt_template=prompt_template
+        size=model_size, prompt_template=prompt_template
     )
     for behavior in behaviors:
         generate_save_vectors_for_behavior(
